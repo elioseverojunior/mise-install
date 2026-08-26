@@ -10,3 +10,25 @@ rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+
+[dev-dependencies]
+criterion = "0.7"
+
+# `bench = false` on both targets, which is what Criterion's own setup calls for:
+# libtest otherwise claims the `cargo bench` run for the lib and bin as well, and
+# it does not understand the `--output-format bencher` that `bench:bencher`
+# passes -- so the run died on "Unrecognized option: 'output-format'" before
+# reaching the Criterion target that does understand it.
+[lib]
+bench = false
+
+[[bin]]
+name = "mise-install"
+path = "src/main.rs"
+bench = false
+
+# `harness = false` hands the target to Criterion's own main instead of libtest;
+# without it `criterion_main!` never runs and `cargo bench` reports nothing.
+[[bench]]
+name = "tool_spec"
+harness = false

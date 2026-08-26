@@ -2696,7 +2696,14 @@ set -Eeuo pipefail
 
 # No benches/ directory anywhere means nothing to measure, so skip cleanly --
 # consistent with the fuzz/flame graceful-skip tasks.
-if ! find crates -type d -name benches 2>/dev/null | grep -q .; then
+#
+# Searched from the repo root, not under `crates/`. Both layouts have to
+# match: `crates/*/benches` is the workspace shape, while a single-crate repo
+# puts `benches/` at the root -- and looking only under `crates/` made this
+# skip unconditionally there, reporting "no benches" for a repo that has them,
+# which is the one answer a gate must never give. `target/` is pruned because
+# a build leaves `benches` directories inside it.
+if ! find . -type d -name benches -not -path './target/*' -not -path './.git/*' 2>/dev/null | grep -q .; then
     echo "bench-bencher: skipping — no benches/ directory found." >&2
     exit 0
 fi

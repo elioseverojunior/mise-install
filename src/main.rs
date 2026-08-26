@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use mise_install::parse_tool_spec;
+
 fn main() {
-    println!("Hello, world!");
+    let spec = parse_tool_spec("cargo:cargo-nextest@0.9.140");
+    println!("{spec:?}");
 }
