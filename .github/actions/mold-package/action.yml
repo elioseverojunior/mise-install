@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
 name: "Install Mold Package"
-description: ""
+description: "Install the mold linker on Linux x64, which .cargo/config.toml requires as the linker for that target"
 
 runs:
   using: "composite"

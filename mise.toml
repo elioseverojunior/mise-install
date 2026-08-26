@@ -825,7 +825,13 @@ set -Eeuo pipefail
 # site is discovered rather than listed, its pattern is pinned to a shape only a
 # real declaration can have (`^<crate> = "`), so CHANGELOG headings and README
 # examples that assert on their own digits are never candidates.
-anchor="$(taplo get -f Cargo.toml '.workspace.package.version')"
+# `[workspace.package]` in a workspace manifest, `[package]` in a single-crate
+# one. Tried in that order rather than assumed -- taplo exits non-zero on a key
+# that is not there, so an unguarded read fails the whole gate on a repo that
+# simply has the other shape.
+if ! anchor="$(taplo get -f Cargo.toml '.workspace.package.version' 2>/dev/null)"; then
+    anchor="$(taplo get -f Cargo.toml '.package.version')"
+fi
 checking="${usage_check:-false}"
 from_git="${usage_from_git:-false}"
 drift=0
@@ -868,7 +874,7 @@ if [ "$from_git" = true ]; then
         echo "version: gitversion produced no MajorMinorPatch; is it installed?" >&2
         exit 1
     fi
-    if stale "Cargo.toml [workspace.package] version" "$anchor" "$computed"; then
+    if stale "Cargo.toml package version" "$anchor" "$computed"; then
         # `^version = "` matches the [workspace.package] key alone: `rust-version`
         # does not start the line with `version`, and the dependency entries spell
         # it inline inside a table.
@@ -882,8 +888,12 @@ fi
 # crate it resolves to, so these are load-bearing rather than cosmetic.
 # Discovered from the dependency table rather than listed; selecting on `path`
 # picks exactly the LOCAL crates and skips registry ones.
-deps="$(taplo get -f Cargo.toml -o json '.workspace.dependencies' \
-    | jq -r 'to_entries[] | select(.value.path) | .key')"
+# Guarded: a single-crate manifest has no [workspace.dependencies] at all, and
+# taplo treats a missing table as an error rather than an empty result.
+deps=""
+if dep_json="$(taplo get -f Cargo.toml -o json '.workspace.dependencies' 2>/dev/null)"; then
+    deps="$(printf '%s' "$dep_json" | jq -r 'to_entries[] | select(.value.path) | .key')"
+fi
 for dep in $deps; do
     found="$(taplo get -f Cargo.toml ".workspace.dependencies.${dep}.version")"
     if stale "Cargo.toml [workspace.dependencies] ${dep}" "$found" "$anchor"; then
@@ -892,10 +902,14 @@ for dep in $deps; do
     fi
 done
 
-found="$(jq -r '.version' docs/package.json)"
-if stale "docs/package.json .version" "$found" "$anchor"; then
-    [ "$checking" = true ] || edit docs/package.json \
-        "s|^(  \"version\": \")[^\"]*(\")|\1${anchor}\2|"
+# Guarded like the sites below it: a repo with no docs site has no
+# docs/package.json, and jq on a missing file fails the whole gate.
+if [ -f docs/package.json ]; then
+    found="$(jq -r '.version' docs/package.json)"
+    if stale "docs/package.json .version" "$found" "$anchor"; then
+        [ "$checking" = true ] || edit docs/package.json \
+            "s|^(  \"version\": \")[^\"]*(\")|\1${anchor}\2|"
+    fi
 fi
 
 # Markdown restates the version tag-style, with the leading `v`. The `-N` suffix
@@ -1249,10 +1263,8 @@ fi
 # already covers these files, and an `override` block would supersede the inline
 # header written above.
 comply annotate \
-    --copyright "2026 Elio Severo Junior <elioseverojunior@gmail.com>" \
-    --license "MIT OR Apache-2.0" \
-    --merge-copyrights \
-    --update-reuse-toml false \
+    --recursive \
+    --force \
     "${real[@]}"
 # `annotate` writes header CONTENT but leaves the SHAPE of an existing header;
 # only `format` canonicalises shape. Running both is what makes this task agree
@@ -2084,7 +2096,8 @@ fi
 
 if [ "$checking" = true ]; then
     printf 'next version: %s (currently %s)\n\n' \
-        "$version" "$(taplo get -f Cargo.toml '.workspace.package.version')"
+        "$version" "$(taplo get -f Cargo.toml '.workspace.package.version' 2>/dev/null \
+            || taplo get -f Cargo.toml '.package.version')"
     # Drift is EXPECTED in a preview, so the non-zero exit must not stop the
     # changelog below, and neither mise's "ERROR task failed" nor the
     # "run version:sync" hint belongs here -- the command to run is this one.

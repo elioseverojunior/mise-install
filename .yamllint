@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 Elio Severo Junior <elioseverojunior@gmail.com>
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+---
+# yamllint-rs configuration — https://github.com/AvnerCohen/yamllint-rs
+#
+# Discovered as `.yamllint` and NOT as `.yamllint.yml`/`.yamllint.yaml`:
+# yamllint-rs only auto-loads the extensionless name. Under either suffix it
+# silently falls back to its built-in defaults, so the config reads as active
+# while doing nothing.
+extends: default
+
+# Reuse the repo's .gitignore so vendored and generated YAML (.act, target, …)
+# is never linted. This is what keeps `mise run yamllint` from failing on files
+# we do not own.
+ignore-from-file: .gitignore
+
+rules:
+  # DISABLED, not demoted to `level: warning`: yamllint-rs exits non-zero on a
+  # warning as readily as on an error, so demoting a rule leaves the gate red
+  # while pretending the finding is advisory. Off is the only honest setting.
+  #
+  # GitHub Actions YAML legitimately runs long -- ${{ ... }} expressions and the
+  # SHA-pin comments `mise run uap` generates both blow past 80 columns.
+  line-length: disable
+  # `check-keys: false` is not honoured by yamllint-rs, and the rule matches the
+  # bare word "on" inside COMMENT prose ("the set turns on actionlint's ...",
+  # .github/actionlint.yaml:25:17). Nothing it reports here is a real finding.
+  truthy: disable
+  # These files intentionally omit the `---` document-start marker.
+  document-start: disable
+  # Action pins use the project convention `@<sha> # vX.Y.Z` -- one space before
+  # the comment -- which `mise run uap` generates. The rule's own
+  # `min-spaces-from-content: 1` is NOT honoured by yamllint-rs (verified: it
+  # still reports "too few spaces before comment"), so the mandated pinning
+  # style can only be accepted by turning the rule off.
+  comments: disable
+  # yamllint-rs applies this rule INSIDE folded/literal scalars, where upstream
+  # yamllint does not: every `description: >` block in .github/actions/*
+  # reported "expected 15 but found 6". Spelled out rather than left to the
+  # default, which yamllint-rs does not honour.
+  indentation:
+    spaces: consistent
+    indent-sequences: consistent
+    check-multi-line-strings: false

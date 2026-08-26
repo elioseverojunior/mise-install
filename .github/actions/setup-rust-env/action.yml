@@ -64,6 +64,16 @@ inputs:
       to feed Swatinem's `shared-key`.
     required: false
     default: ""
+  msrv-install:
+    description: >
+      Install the floor declared by Cargo.toml's `rust-version` ALONGSIDE the
+      pinned toolchain, without making it active. The pin stays in charge, so
+      every cargo tool still builds on it; the floor is reachable only by name,
+      through `cargo +<msrv>` or RUSTUP_TOOLCHAIN. Off by default -- only the
+      MSRV job needs it, and installing a second toolchain is not free. The
+      value read is published as the `msrv` output.
+    required: false
+    default: "false"
 
 outputs:
   cache-hit:
@@ -75,6 +85,12 @@ outputs:
   rust-version:
     description: "The installed Rust toolchain version (e.g. 'rustc 1.88.0 (a1b2c3d4e 2025-07-14)')"
     value: ${{ steps.rust-toolchain.outputs.name }}
+  msrv:
+    description: >
+      The `rust-version` declared by the root Cargo.toml, or an empty string.
+      Populated whether or not `msrv-install` ran, so a job can cross-check the
+      floor without paying for a second toolchain.
+    value: ${{ steps.rust-toolchain.outputs.msrv }}
 
 runs:
   using: "composite"
@@ -113,7 +129,7 @@ runs:
         cache-key-hash: ${{ hashFiles('**/Cargo.lock') }}
         cache-key-suffix: ${{ inputs.cache-key-suffix }}
         cache-on-failure: "true"
-        msrv-install: "true"
+        msrv-install: ${{ inputs.msrv-install }}
 
     - name: Setup mise
       uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0

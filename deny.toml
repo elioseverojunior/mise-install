@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: 2026 Elio Severo Junior <elioseverojunior@gmail.com>
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# Supply chain security policy.
+
+# ==============================================================================
+# License Management
+# ==============================================================================
+
+[licenses]
+# Only licences compatible with this project's dual MIT OR Apache-2.0.
+allow = [
+  "Apache-2.0",
+  "MIT",
+  "Unicode-3.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+]
+
+confidence-threshold = 0.8
+
+# The allowlist is forward-looking, so entries unused by the current (empty)
+# dependency graph are expected. Silences `license-not-encountered`.
+unused-allowed-license = "allow"
+
+# ==============================================================================
+# Security Advisories
+# ==============================================================================
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/RustSec/advisory-db"]
+
+# No ignored advisories: zero tolerance for known vulnerabilities.
+ignore = []
+
+# ==============================================================================
+# Banned Dependencies
+# ==============================================================================
+
+[bans]
+highlight = "all"
+multiple-versions = "deny"
+wildcards = "deny"
+
+deny = []
+skip = []
+skip-tree = []
+
+# ==============================================================================
+# Source Control
+# ==============================================================================
+
+[sources]
+unknown-git = "deny"
+unknown-registry = "deny"
+
+allow-git = []
+
+# cargo-deny normalises crates.io to this canonical identifier regardless of the
+# sparse/git protocol, so this single entry covers it.
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
