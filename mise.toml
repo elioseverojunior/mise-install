@@ -1231,17 +1231,17 @@ usage = 'arg "[args]" var=#true help="comply subcommand + flags; defaults to `li
 
 [tasks."comply:fix"]
 alias = []
-description = "Add/refresh SPDX headers on source files with `comply annotate` (the WRITE counterpart to the lint-only `comply` task). Requires explicit paths — it never blanket-annotates, since most files are covered aggregately by REUSE.toml's `**` rule"
+description = "Add/refresh SPDX headers with `comply annotate` (the WRITE counterpart to the lint-only `comply` task). Takes files or directories; defaults to . (the whole project)"
 run = '''
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
 
-# `comply lint` only CHECKS; this is the writer. Paths are required on purpose:
-# REUSE.toml's `**` aggregate already makes every file compliant, so headers are
-# an opt-in per-file convention. `--copyright` takes NO year -- comply prepends
-# the current one -- and --merge-copyrights keeps re-runs idempotent.
-eval "paths=(${usage_paths:-})"
+# `comply lint` only CHECKS; this is the writer. Defaults to `.` -- the whole
+# project -- which `--recursive` below then walks. Licence and copyright are not
+# passed: REUSE.toml supplies both, and comply treats its own flags as optional
+# whenever it does, so there is one source of truth rather than two.
+eval "paths=(${usage_paths:-.})"
 # Never annotate symlinks -- the per-crate LICENSE-* links point at the shared
 # LICENSES/ texts, so `comply annotate` would write THROUGH the link or drop a
 # `.license` sidecar.
@@ -1254,7 +1254,8 @@ for p in "${paths[@]}"; do
     fi
 done
 # Joined-string test, not an array-length expansion: mise renders run blocks as
-# Tera templates and `{#` opens a Tera comment.
+# Tera templates first, and a brace followed by a hash opens a Tera comment --
+# which is why that sequence is never written literally in this file either.
 if [ -z "${real[*]:-}" ]; then
     exit 0
 fi
@@ -1270,14 +1271,26 @@ comply annotate \
 # only `format` canonicalises shape. Running both is what makes this task agree
 # with `comply:format:check` by construction. `--files` takes ONE value per
 # occurrence, so the flag is repeated rather than handed a list.
-fmt_args=()
-for p in "${real[@]}"; do
-    fmt_args+=(--files "$p")
-done
-comply format "${fmt_args[@]}"
+#
+# A lone directory goes through `--path`, explicit files through a repeated
+# `--files`: the two flags are not interchangeable -- `--files` names source
+# files, `--path` names the project root, and `comply format --files .` asks it
+# to format a directory as if it were a file. The emptiness test avoids an
+# array-length expansion for the Tera reason noted above.
+first="${real[0]}"
+rest="${real[*]:1}"
+if [ -z "$rest" ] && [ -d "$first" ]; then
+    comply format --path "$first"
+else
+    fmt_args=()
+    for p in "${real[@]}"; do
+        fmt_args+=(--files "$p")
+    done
+    comply format "${fmt_args[@]}"
+fi
 '''
 shell = "bash -c"
-usage = 'arg "<paths>" var=#true help="files to annotate, e.g. crates/foo/src/lib.rs"'
+usage = 'arg "[paths]" var=#true help="files or directories to annotate; defaults to . (the whole project) when omitted"'
 
 [tasks."comply:fix:all"]
 alias = []
@@ -2129,8 +2142,9 @@ usage = 'flag "--check" help="preview the computed version and changelog entries
 # other non-200 stops the caller, rather than collapsing a network blip into
 # "this name is free".
 #
-# TERA, NOT BASH, PARSES THIS FIRST: `{#` opens a Tera comment, so every count
-# below is an explicit counter variable rather than an array length.
+# TERA, NOT BASH, PARSES THIS FIRST: a brace followed by a hash opens a Tera
+# comment, so every count below is an explicit counter variable rather than an
+# array length -- and that sequence is never written literally here.
 [tasks."crates:status"]
 alias = ["cs", "crates:check"]
 description = "Classify every publishable workspace crate on crates.io (absent / exists / version-taken) and verify ownership. Fails closed on any inconclusive lookup; prints a trailing bootstrap_needed=<bool> line for CI to consume"
