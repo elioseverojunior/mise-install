@@ -28,32 +28,20 @@ out = ["Stdout", "Xml", "Lcov"]
 # metric — NOT a way to dodge testing real logic (all real logic is unit-tested
 # and still counts). Globs are relative to the repo root under the `crates/`
 # workspace layout.
-#   * `crates/*/src/main.rs`        — CLI binary entry points (argv/stdin/
-#                                     `process::exit`); each satellite's real
-#                                     logic lives in its `lib.rs`, which IS
-#                                     measured and tested. A `cargo test` cannot
-#                                     exercise `main.rs` without spawning a
-#                                     subprocess.
-#   * `crates/glaucus-wasm/src/lib.rs` — `#[wasm_bindgen]` export delegates; they
-#                                     need a WebAssembly runtime to run. All real
-#                                     logic lives in the host-unit-tested
-#                                     `*_logic` functions. Mirrors the crate-local
-#                                     `unsafe` exception documented in CLAUDE.md.
+#   * `src/main.rs` — the binary entry point (argv/stdin/`process::exit`); the
+#     real logic lives in `lib.rs`, which IS measured and tested. A `cargo test`
+#     cannot exercise `main.rs` without spawning a subprocess.
+#
+# Both layouts are listed so this keeps working if the crate becomes a
+# workspace: `src/main.rs` is the single-crate shape, `crates/*/src/main.rs`
+# the other.
 exclude-files = [
+  "src/main.rs",
   "crates/*/src/main.rs",
-  # The only CLI file that touches the real process: argv, locked stdio, TTY
-  # detection and the panic hook. Everything else in src/cli/ is ordinary
-  # library code driven through `run_with(Env)` and is covered by unit tests.
-  "crates/glaucus/src/cli/process.rs",
-  "crates/glaucus-wasm/src/lib.rs",
   # Criterion targets set `harness = false`, so `cargo test` never runs them --
-  # there is no harness to run. Only `streaming_vs_tree.rs` ever showed up here,
-  # because it is the one bench with a GENERIC helper and monomorphisation emits
-  # a coverage map for it even though the binary is never executed; the others
-  # are invisible for the same reason they are untestable. Excluded as a
-  # directory so that stays true whichever bench gains a generic next.
-  #
-  # No production logic is hidden: glaucus-bench is a dev-only crate, and its
-  # `src/fixtures.rs` IS unit-tested and still counted.
-  "crates/glaucus-bench/benches/*.rs",
+  # there is no harness to run. A bench with a GENERIC helper still emits a
+  # coverage map through monomorphisation even though the binary never runs, so
+  # the directory is excluded wholesale rather than named file by file.
+  "benches/*.rs",
+  "crates/*/benches/*.rs",
 ]

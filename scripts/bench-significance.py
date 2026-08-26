@@ -11,7 +11,7 @@
 
 """Decide whether one benchmark arm beats another, from Criterion's intervals.
 
-    cargo criterion -p glaucus-bench --bench streaming_vs_tree
+    cargo criterion --bench <name>
     scripts/bench-significance.py --baseline tree --candidate streaming
 
 Reads `target/criterion/**/new/estimates.json` -- the confidence intervals, not

@@ -75,7 +75,7 @@ jobs:
           # which appends CommitsSinceVersionSource as a pre-release identifier
           # (`0.1.0-1`); everything after the hyphen makes the release a SemVer
           # PRE-RELEASE, so crates.io reported no stable version at all and
-          # `cargo add glaucus` resolved an empty `0.0.0` placeholder instead of
+          # `cargo add mise-install` resolved an empty `0.0.0` placeholder instead of
           # the library. Anchoring here fails the build if that ever comes back.
           printf '%s' "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
             || fail "version must be a stable X.Y.Z with no pre-release: '${VERSION}'"

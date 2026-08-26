@@ -163,7 +163,7 @@ jobs:
           # `version` is MajorMinorPatch, NOT SemVer. SemVer appends
           # CommitsSinceVersionSource as a pre-release identifier (`0.1.0-1`),
           # which makes every published crate a SemVer PRE-RELEASE: crates.io
-          # then reports no stable version, `cargo add glaucus` resolved the
+          # then reports no stable version, `cargo add mise-install` resolved the
           # empty `0.0.0` placeholder instead of the library, and `cargo install`
           # never selected it without an explicit `--version`. The full SemVer
           # string is still available to callers as `.SemVer` inside `json`.

@@ -11,7 +11,7 @@
 
 """Convert Criterion's bencher-format output into the JSON the docs site reads.
 
-    cargo bench -p glaucus-bench -- --output-format bencher > bench-output.txt
+    cargo bench -- --output-format bencher > bench-output.txt
     scripts/bench-to-json.py bench-output.txt -o docs/.data/benchmarks.json
 
 Deliberately dumb: it emits measurements and environment, nothing derived. Every
@@ -63,7 +63,7 @@ def _git(*args: str) -> str:
 def parse(text: str) -> list[dict[str, object]]:
     """Split each benchmark id into group/library/fixture where it has that shape.
 
-    Ids are `group/library/fixture` (serde_deserialize/glaucus/small),
+    Ids are `group/library/fixture` (serde_deserialize/mise-install/small),
     `group/fixture` (roundtrip_node/small) or bare. Anything that does not split
     into three keeps `library`/`fixture` as None rather than being guessed at;
     the loader renders those in a flat table instead of a comparison matrix.

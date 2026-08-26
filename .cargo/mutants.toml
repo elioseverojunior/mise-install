@@ -4,10 +4,13 @@
 
 # cargo-mutants configuration.
 #
-# Exclude the SAME host-untestable entry/ABI boilerplate that tarpaulin.toml
-# excludes from coverage: mutating a binary `main` or a `#[wasm_bindgen]` shim
-# only ever yields "missed" mutants because they can't be exercised by a host
-# `cargo test`. All real logic lives in lib.rs / `*_logic` functions and IS
-# mutation-tested. Kept in sync with tarpaulin.toml's `exclude-files` by hand —
-# the two tools use different config formats, so the list can't be shared.
-exclude_globs = ["crates/*/src/main.rs", "crates/glaucus-wasm/src/lib.rs"]
+# Exclude the SAME host-untestable entry-point boilerplate that tarpaulin.toml
+# excludes from coverage: mutating a binary `main` only ever yields "missed"
+# mutants, because it cannot be exercised by a host `cargo test`. All real logic
+# lives in lib.rs and IS mutation-tested. Kept in sync with tarpaulin.toml's
+# `exclude-files` by hand -- the two tools use different config formats, so the
+# list cannot be shared.
+#
+# Both layouts are listed so this keeps working if the crate becomes a workspace:
+# `src/main.rs` is the single-crate shape, `crates/*/src/main.rs` the other.
+exclude_globs = ["src/main.rs", "crates/*/src/main.rs"]

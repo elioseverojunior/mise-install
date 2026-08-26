@@ -750,7 +750,7 @@ gitversion /nocache /output json \
 # The exact tag name the `git:tag:*` tasks default to. `MajorMinorPatch`, NOT
 # `SemVer`: SemVer appends a commit counter as a pre-release identifier, which
 # makes the whole version a SemVer PRE-RELEASE -- crates.io then tracks
-# max_stable_version separately and `cargo add glaucus` resolved the empty
+# max_stable_version separately and `cargo add mise-install` resolved the empty
 # `0.0.0` placeholder instead of the real library.
 [tasks."version:tag"]
 alias = []
@@ -927,7 +927,7 @@ for doc in docs/reference/cli.md; do
     fi
 done
 
-# Install snippets restate the version as a Cargo REQUIREMENT -- `glaucus = "0.2"`,
+# Install snippets restate the version as a Cargo REQUIREMENT -- `mise-install = "0.2"`,
 # not `"0.2.1"` and not `"v0.2.1"`. The right requirement is the loosest that
 # still excludes breaking changes: `0.MINOR` while the crate is 0.x, bare `MAJOR`
 # from 1.0 on. Pinning the patch would rewrite every README on every release.
@@ -942,12 +942,12 @@ esac
 # on those digits). Requiring `^<crate> = "` matches the dependency form alone.
 while IFS= read -r doc; do
     [ -e "$doc" ] || continue
-    found="$(sed -nE 's/^glaucus[a-z-]* = "([^"]+)".*/\1/p' "$doc" | sort -u | tr '\n' ' ')"
+    found="$(sed -nE 's/^mise-install[a-z-]* = "([^"]+)".*/\1/p' "$doc" | sort -u | tr '\n' ' ')"
     found="${found% }"
     [ -n "$found" ] || continue
-    if stale "${doc} glaucus requirement" "$found" "$req"; then
+    if stale "${doc} mise-install requirement" "$found" "$req"; then
         [ "$checking" = true ] || edit "$doc" \
-            "s|^(glaucus[a-z-]* = \")[^\"]*(\")|\1${req}\2|"
+            "s|^(mise-install[a-z-]* = \")[^\"]*(\")|\1${req}\2|"
     fi
 done < <(git ls-files '*.md')
 
@@ -981,7 +981,7 @@ run = '''
 
 set -Eeuo pipefail
 
-page="target/doc/glaucus/index.html"
+page="target/doc/mise_install/index.html"
 
 # Dispatched on `uname`, not on which opener happens to be installed: `open` is an
 # unrelated command on some Linux distributions. $BROWSER comes first regardless
@@ -1400,7 +1400,7 @@ APP_VERSION="${APP_VERSION:-0.1.0}"
 # Overrides the BUILD base only. A single shared `IMAGE_TAG` also reached the
 # Dockerfile's runtime `debian:` FROM and asked for `debian:1.97-trixie`.
 IMAGE_TAG_BUILD="${RUST_VERSION}-trixie"
-DOCKER_TAG="${usage_tag:-glaucus:${APP_VERSION}}"
+DOCKER_TAG="${usage_tag:-mise-install:${APP_VERSION}}"
 DOCKERFILE="${usage_file:-docker/Dockerfile}"
 
 BUILD_ARGS=()
@@ -1472,7 +1472,7 @@ echo ""
 echo "--- Verifying .dockerignore ---"
 
 # Expected: essential build files MUST be present
-for f in "Cargo.toml" "Cargo.lock" "crates/glaucus/build.rs" "rust-toolchain.toml"; do
+for f in "Cargo.toml" "Cargo.lock" "rust-toolchain.toml"; do
     if echo "$CONTEXT_FILES" | grep -q "/ctx/$f"; then
         echo "  [ok]   $f present"
     else
@@ -1482,7 +1482,7 @@ for f in "Cargo.toml" "Cargo.lock" "crates/glaucus/build.rs" "rust-toolchain.tom
 done
 
 # Check that key directories exist
-for d in "crates/glaucus/src/lib.rs" "crates/glaucus/src/main.rs" ".cargo/config.toml"; do
+for d in "src/lib.rs" "src/main.rs" ".cargo/config.toml"; do
     if echo "$CONTEXT_FILES" | grep -q "/ctx/$d"; then
         echo "  [ok]   $d present"
     else
@@ -1491,7 +1491,7 @@ for d in "crates/glaucus/src/lib.rs" "crates/glaucus/src/main.rs" ".cargo/config
     fi
 done
 
-# `.git` is DELIBERATELY not in this list: `crates/glaucus/build.rs` stamps a real
+# `.git` is DELIBERATELY not in this list: a build.rs can stamp a real
 # GIT_COMMIT from it. It is checked as a REQUIRED-present path instead, below.
 if echo "$CONTEXT_FILES" | grep -q "/ctx/.git/HEAD"; then
     echo "  [ok]   .git present (needed for GIT_COMMIT provenance)"
@@ -1549,22 +1549,30 @@ run = '''
 set -Eeuo pipefail
 if [ "${usage_verbose:-false}" = "true" ]; then set -x; fi
 
-# GUARD, and the reason this task exists. Both harnesses open with
-# `if !data_dir.exists() { return; }`, so an absent submodule makes them PASS
-# having asserted nothing; `git worktree add` and a non-recursive clone leave the
-# directory present but EMPTY. Checking for CONTENT covers both.
-data="crates/glaucus-yaml-test-suite/data"
+# No conformance crate in this repo yet, so there is nothing to run and the
+# task skips cleanly -- consistent with the fuzz/bench graceful-skip tasks.
+# Point CONFORMANCE_CRATE at one to enable it.
+#
+# The guard checks for CONTENT, not existence: a suite carried as a git
+# submodule leaves its directory present but EMPTY after `git worktree add` or
+# a non-recursive clone, and a harness that opens with
+# `if !data_dir.exists() { return; }` then PASSES having asserted nothing.
+crate="${CONFORMANCE_CRATE:-}"
+if [ -z "${crate}" ]; then
+    echo "test:conformance: skipping — no conformance crate configured." >&2
+    exit 0
+fi
+
+data="crates/${crate}/data"
 if [ ! -d "${data}" ] || [ -z "$(ls -A "${data}" 2>/dev/null)" ]; then
     echo "test:conformance: ${data} is missing or empty." >&2
-    echo "                  The suite is a git submodule pinned to yaml/yaml-test-suite." >&2
     echo "                  Run: mise run setup:submodules" >&2
     exit 1
 fi
 
 # `--nocapture` because the pass/fail counts are the point: the harness prints a
-# 402-case report cargo would otherwise swallow.
-cargo test -p glaucus-yaml-test-suite \
-    --test yaml_test_suite --test round_trip_fidelity -- --nocapture
+# report cargo would otherwise swallow.
+cargo test -p "${crate}" -- --nocapture
 '''
 shell = "bash -c"
 usage = '''
@@ -1596,11 +1604,12 @@ rustup toolchain install "$COVERAGE_TOOLCHAIN" \
   --profile minimal --component llvm-tools --no-self-update
 export RUSTUP_TOOLCHAIN="$COVERAGE_TOOLCHAIN"
 
-# `--features glaucus/cli` is load-bearing: `cli` is not in glaucus's default set,
-# so without it tarpaulin never compiles crates/glaucus/src/cli/ and the 100% gate
-# passes while measuring none of it.
+# `--all-features`, not a named `<crate>/<feature>`: a feature outside the
+# default set is never compiled, so the gate would pass while measuring none of
+# the code behind it. Naming the feature instead would hardcode a crate name
+# here, which is exactly what went stale.
 cargo tarpaulin --workspace --engine llvm \
-  --features glaucus/cli \
+  --all-features \
   --run-types Tests --run-types Doctests \
   --fail-under "${usage_threshold?}" \
   ${args[@]+"${args[@]}"}
@@ -1851,7 +1860,7 @@ else
     scripts/bench-preflight.py --snapshot "$snapshot"
 fi
 
-cargo bench -p glaucus-bench --bench streaming_vs_tree
+cargo bench --bench "${usage_bench:-tool_spec}"
 scripts/bench-significance.py --baseline tree --candidate streaming \
     --host "$snapshot" --json docs/benchmarks/streaming-vs-tree.json
 '''
@@ -2164,7 +2173,7 @@ version="${usage_version:-$(cargo metadata --no-deps --format-version 1 \
 verify="${usage_verify:-false}"
 owner="${usage_owner:-$(git config --get remote.origin.url | sed -E 's#.*[:/]([^/]+)/[^/]+$#\1#')}"
 
-ua="glaucus-publish-workflow (+https://github.com/${owner}/glaucus)"
+ua="${PROJECT_NAME}-publish-workflow (+https://github.com/${owner}/${PROJECT_NAME})"
 body="$(mktemp)"
 trap 'rm -f "$body"' EXIT
 
@@ -2376,7 +2385,7 @@ fi
 if [ "$count" -eq 0 ]; then
     {
         echo 'crates:dev-only: no workspace crate declares publish = false -- refusing to continue.'
-        echo '  Expected at least glaucus-bench, glaucus-fuzz and glaucus-yaml-test-suite.'
+        echo '  Expected at least one dev-only harness (bench, fuzz or a conformance suite).'
         echo '  Either a harness lost its publish = false key, or this query no longer'
         echo "  matches cargo's metadata schema. Inspect the raw values with:"
         echo '    cargo metadata --no-deps --format-version 1 | jq ".packages[] | [.name, .publish]"'
@@ -2573,15 +2582,16 @@ unset RUSTFLAGS
 [tasks."build:install"]
 alias = ["bs", "bi", "build:setup"]
 depends = []
-description = "This only build and install the glaucus locally."
+description = "Build the release binary and install it into ~/.local/bin"
 run = '''
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
 
-cargo build --release -p glaucus --features cli
-chmod -v +x target/release/glaucus
-cp -rfv target/release/glaucus ~/.local/bin/
+cargo build --release -p mise-install
+chmod -v +x target/release/mise-install
+mkdir -p ~/.local/bin
+cp -rfv target/release/mise-install ~/.local/bin/
 '''
 shell = "bash -c"
 
@@ -2859,7 +2869,7 @@ run = "bun run dev"
 [tasks."docs:build"]
 alias = ["docsb"]
 depends = ["docs:install"]
-description = "Build the docs site into docs/.vitepress/dist. Set DOCS_BASE=/ for a custom domain; the default `/glaucus/` matches GitHub project pages"
+description = "Build the docs site into docs/.vitepress/dist. Set DOCS_BASE=/ for a custom domain; the default `/mise-install/` matches GitHub project pages"
 dir = "docs"
 run = '''
 #!/usr/bin/env bash

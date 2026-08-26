@@ -56,7 +56,7 @@ HOST_CC = "gcc"
 # abandoned. See issue #8.
 #
 # Note these apply only to builds INSIDE this repository. A downstream crate
-# depending on glaucus is governed by its own profiles; nothing here reaches it.
+# depending on mise-install is governed by its own profiles; nothing here reaches it.
 
 [profile.dev]
 debug = true
@@ -87,10 +87,9 @@ opt-level = 0
 [profile.release]
 # MAX RUNTIME SPEED. `opt-level = "z"` optimizes for *binary size*, which is the
 # opposite of fast -- it suppresses inlining and vectorization. `3` is the fastest
-# codegen and the right default for a parser's hot path.
+# codegen and the right default for a hot path.
 opt-level = 3
-# Whole-program, cross-crate inlining: the slowest link, the fastest code. Worth
-# it here because the satellite crates inline straight into `glaucus`.
+# Whole-program, cross-crate inlining: the slowest link, the fastest code.
 lto = "fat"
 # One codegen unit => the optimizer sees the whole crate at once (no per-unit
 # boundaries to block inlining). Slowest compile, best code.
@@ -102,13 +101,6 @@ panic = "abort"
 # the `profiling` profile below instead.
 debug = false
 strip = "symbols"
-
-# WASM is downloaded before it runs, so its *size* IS its performance. Keep
-# glaucus-wasm tuned for a small `.wasm` rather than inheriting the native
-# `opt-level = 3` above (which would bloat the module). `"s"` balances size/speed;
-# switch to `"z"` for the smallest possible module.
-[profile.release.package.glaucus-wasm]
-opt-level = "s"
 
 # Release-grade codegen but WITH line-table symbols and no stripping, so
 # `cargo flamegraph` / `perf` can attribute samples back to source. The `flame`

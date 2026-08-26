@@ -22,20 +22,16 @@ on:
   # push:
   #   branches: [main]
   #   paths:
-  #     - "crates/glaucus-core/**"
-  #     - "crates/glaucus-serde/**"
-  #     - "crates/glaucus/**"
-  #     - "crates/glaucus-bench/**"
+  #     - "src/**"
+  #     - "benches/**"
   #     - "Cargo.toml"
   #     - "Cargo.lock"
   #     - ".github/workflows/performance.yml"
   # pull_request:
   #   branches: [main]
   #   paths:
-  #     - "crates/glaucus-core/**"
-  #     - "crates/glaucus-serde/**"
-  #     - "crates/glaucus/**"
-  #     - "crates/glaucus-bench/**"
+  #     - "src/**"
+  #     - "benches/**"
   #     - "Cargo.toml"
   #     - "Cargo.lock"
   #     - ".github/workflows/performance.yml"
@@ -393,11 +389,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # No submodules and no history. The only submodule is the yaml-test-
-          # suite conformance corpus, which nothing under crates/glaucus-bench
-          # reads -- every fixture there is generated in code -- and cloning it
-          # on four runners buys nothing. bench-to-json.py's `git rev-parse`
-          # calls are satisfied by a depth-1 checkout.
+          # No submodules and no history: nothing the benches read comes from a
+          # submodule -- every fixture is generated in code -- and cloning one on
+          # four runners buys nothing. bench-to-json.py's `git rev-parse` calls
+          # are satisfied by a depth-1 checkout.
           fetch-depth: 1
           ref: ${{ env.REF }}
 
@@ -498,7 +493,7 @@ jobs:
           echo "quality=${quality}" >> "$GITHUB_OUTPUT"
 
       - name: Build benchmarks (warm cache, fail fast on compile errors)
-        run: cargo bench --locked -p glaucus-bench --no-run
+        run: cargo bench --locked --no-run
 
       - name: Run benchmarks
         env:
@@ -506,7 +501,7 @@ jobs:
           MODE: ${{ inputs.mode || 'full' }}
         run: |
           set -Eeuo pipefail
-          cargo_args=(--locked -p glaucus-bench)
+          cargo_args=(--locked)
           if [ -n "${BENCH}" ]; then
             cargo_args+=(--bench "${BENCH}")
           fi
