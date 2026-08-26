@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Elio Severo Junior <elioseverojunior@gmail.com>
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "mise-install"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+
+[dependencies]

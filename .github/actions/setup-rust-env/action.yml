@@ -1,0 +1,122 @@
+# SPDX-FileCopyrightText: 2026 Elio Severo Junior <elioseverojunior@gmail.com>
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: "Setup Rust Environment"
+description: "Setup Rust toolchain, cache, and cargo tools in one action"
+inputs:
+  toolchain:
+    description: >
+      Rust toolchain channel. Empty by default so the action reads
+      rust-toolchain.toml, keeping that file the single source of truth. Naming
+      a channel here overrides it for the whole job -- the action exports
+      RUSTUP_TOOLCHAIN, which outranks every rust-toolchain.toml in the tree --
+      so set it only for jobs that genuinely need another channel (nightly).
+    required: false
+    default: ""
+  profile:
+    description: >
+      rustup profile. `minimal` by default, not rustup's own `default`: the
+      difference is rust-docs, 902 MB of offline std documentation that no job
+      here reads. Everything the gates need is requested as a component instead.
+    required: false
+    default: "minimal"
+  components:
+    description: >
+      EXTRA rustup components, added to the clippy/rustfmt/llvm-tools this
+      action always installs (e.g. rust-src for a nightly job). These add to
+      that set rather than replacing it.
+    required: false
+    default: ""
+  targets:
+    description: "Additional rustup targets (e.g., wasm32-unknown-unknown)"
+    required: false
+    default: ""
+  cargo-tools:
+    description: >
+      Comma-separated `<crate>@<version>` list, passed straight through to
+      rust-toolchain's own `cargo-tools` input so the binaries land under its
+      `bin` cache layer. Every entry MUST carry an explicit version: that layer's
+      key is the hash of the resolved tool set, so a pinned version is what makes
+      a tool bump produce a new key -- and a bare name would instead resolve
+      through crates.io on every run.
+
+      This used to be an install-action list with comply and ignorefile built
+      from a git rev alongside it, cached by a hand-rolled ~/.cargo/bin step.
+      Both are on crates.io now, so the whole arrangement collapsed into this one
+      input and the `bin` layer.
+
+      cargo-binstall is here for mise's benefit, not ours: mise's `cargo:`
+      backend shells out to ~/.cargo/bin/cargo-binstall and, finding none on a
+      runner, falls back to compiling each pinned tool from source -- which is
+      what made `mise install` take ~9 minutes.
+
+      mise.toml is otherwise the single source of truth for tool versions. A job
+      needing something outside it passes it here.
+    required: false
+    default: "cargo-binstall"
+  cache-key-suffix:
+    description: >
+      Namespaces this job's registry/build cache away from the shared one. A job
+      whose dependency set differs from the workspace default -- `nightly`, for
+      instance -- passes a suffix so it neither poisons nor is poisoned by the
+      common cache. Replaces the old `rust-cache-shared-key`, which existed only
+      to feed Swatinem's `shared-key`.
+    required: false
+    default: ""
+
+outputs:
+  cache-hit:
+    description: "Whether the Rust cache was restored (exact match)"
+    value: ${{ steps.rust-toolchain.outputs.cache-hit }}
+  cache-key:
+    description: "The registry/build cache key rust-toolchain derived"
+    value: ${{ steps.rust-toolchain.outputs.cachekey }}
+  rust-version:
+    description: "The installed Rust toolchain version (e.g. 'rustc 1.88.0 (a1b2c3d4e 2025-07-14)')"
+    value: ${{ steps.rust-toolchain.outputs.name }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: GitHub Actions Bot Configuration
+      uses: ./.github/actions/bot-setup
+
+    - name: Install Mold Package
+      uses: ./.github/actions/mold-package
+
+    - name: Resolve toolchain components
+      id: components
+      shell: bash
+      env:
+        EXTRA: ${{ inputs.components }}
+      run: |
+        list="clippy,rustfmt,llvm-tools"
+        if [ -n "$EXTRA" ]; then
+          list="${list},${EXTRA}"
+        fi
+        echo "list=${list}" >> "$GITHUB_OUTPUT"
+
+    - name: Setup Rust toolchain
+      id: rust-toolchain
+      uses: elioseverojunior/rust-toolchain@2b4beb07b7a26e64b0e56c3540f61b9ea726a3e1 # v0.7.1
+      with:
+        toolchain: ${{ inputs.toolchain }}
+        profile: ${{ inputs.profile }}
+        components: ${{ steps.components.outputs.list }}
+        targets: ${{ inputs.targets }}
+        cargo-tools: ${{ inputs.cargo-tools }}
+        cache: "true"
+        cache-layers: "registry,build,bin"
+        # Required whenever `registry` or `build` is enabled; the action fails
+        # rather than silently degrading if it is missing.
+        cache-key-hash: ${{ hashFiles('**/Cargo.lock') }}
+        cache-key-suffix: ${{ inputs.cache-key-suffix }}
+        cache-on-failure: "true"
+        msrv-install: "true"
+
+    - name: Setup mise
+      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      with:
+        cache_key_prefix: mise
+        cache_key: mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/mise.lock') || hashFiles('**/mise.toml') }}
