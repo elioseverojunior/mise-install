@@ -62,6 +62,14 @@ on:
           - default
           - stable
           - nightly
+      profile:
+        description: "Profile: `default` to setup with rust-toolchain.toml"
+        type: choice
+        default: default
+        options:
+          - default
+          - minimal
+          - complete
       mode:
         description: "`quick` trades Criterion's precision for wall-clock"
         type: choice
@@ -110,6 +118,23 @@ jobs:
   setup:
     name: Setup
     runs-on: ${{ vars.RUNS_ON_ARM64 || vars.RUNS_ON || 'ubuntu-latest' }}
+    outputs:
+      cachekey: ${{ steps.setup-rust-env.outputs.cachekey }}
+      cachekey-full: ${{ steps.setup-rust-env.outputs.cachekey-full }}
+      cache: ${{ steps.setup-rust-env.outputs.cache }}
+      cache-hit: ${{ steps.setup-rust-env.outputs.cache-hit }}
+      name: ${{ steps.setup-rust-env.outputs.name }}
+      toolchain: ${{ steps.setup-rust-env.outputs.toolchain }}
+      targets: ${{ steps.setup-rust-env.outputs.targets }}
+      target: ${{ steps.setup-rust-env.outputs.target }}
+      components: ${{ steps.setup-rust-env.outputs.components }}
+      profile: ${{ steps.setup-rust-env.outputs.profile }}
+      msrv: ${{ steps.setup-rust-env.outputs.msrv }}
+      msrv-effective: ${{ steps.setup-rust-env.outputs.msrv-effective }}
+      msrv-source: ${{ steps.setup-rust-env.outputs.msrv-source }}
+      set-rustup-toolchain: ${{ steps.setup-rust-env.outputs.set-rustup-toolchain }}
+      cargo-tools: ${{ steps.setup-rust-env.outputs.cargo-tools }}
+      json: ${{ steps.setup-rust-env.outputs.json }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -124,6 +149,7 @@ jobs:
       # failure: those crates publish no prebuilt binary, so mise source-builds
       # them here once per mise.lock change and later jobs restore the cache.
       - name: Setup Environment
+        id: setup-rust-env
         uses: ./.github/actions/setup-rust-env
 
   # ──────────────────────────────────────────────
@@ -169,6 +195,7 @@ jobs:
     # dependency on `setup`, whose cache is keyed to ONE host and therefore has
     # nothing to offer four different ones.
     runs-on: ${{ vars.RUNS_ON_ARM64 || vars.RUNS_ON || 'ubuntu-latest' }}
+    needs: [setup]
     timeout-minutes: 5
     outputs:
       include: ${{ steps.expand.outputs.include }}
@@ -183,7 +210,8 @@ jobs:
         # that happen to be safe today.
         env:
           SELECT: ${{ inputs.platforms || 'all' }}
-          CHANNEL: ${{ inputs.toolchain || 'default' }}
+          CHANNEL: ${{ inputs.toolchain == 'default' || needs.setup.outputs.toolchain || inputs.toolchain }}
+          PROFILE: ${{ inputs.profile || 'default' }}
           RUNNER_LINUX_X86_64: ${{ vars.PERF_RUNNER_LINUX_X86_64 || 'ubuntu-24.04' }}
           RUNNER_LINUX_AARCH64: ${{ vars.PERF_RUNNER_LINUX_AARCH64 || 'ubuntu-24.04-arm' }}
           RUNNER_MACOS_X86_64: ${{ vars.PERF_RUNNER_MACOS_X86_64 || 'macos-26-intel' }}
@@ -196,14 +224,10 @@ jobs:
               --arg select "${SELECT}" \
               --arg channel "${CHANNEL}" \
               --arg linux_x86_64 "${RUNNER_LINUX_X86_64}" \
-              --arg linux_aarch64 "${RUNNER_LINUX_AARCH64}" \
-              --arg macos_x86_64 "${RUNNER_MACOS_X86_64}" \
-              --arg macos_aarch64 "${RUNNER_MACOS_AARCH64}" '
+              --arg linux_aarch64 "${RUNNER_LINUX_AARCH64}" '
                 [
                   {key: "linux-24.04-x86_64",  label: "ubuntu-24.04",  os: "linux", arch: "x86_64",  runner: $linux_x86_64,  target: "x86_64-unknown-linux-gnu"},
                   {key: "linux-24.04-aarch64", label: "ubuntu-24.04-arm", os: "linux", arch: "aarch64", runner: $linux_aarch64, target: "aarch64-unknown-linux-gnu"},
-                  {key: "macos-26-x86_64",  label: "macos-26-intel",  os: "macos", arch: "x86_64",  runner: $macos_x86_64,  target: "x86_64-apple-darwin"},
-                  {key: "macos-26-aarch64", label: "macos-26", os: "macos", arch: "aarch64", runner: $macos_aarch64, target: "aarch64-apple-darwin"}
                 ]
                 | map(select($select == "all" or .os == $select or .key == $select))
                 | map(. + {
@@ -211,7 +235,7 @@ jobs:
                     # setup-rust-env reads rust-toolchain.toml when this is
                     # empty, which is what keeps that file the single source of
                     # truth for the default run.
-                    toolchain: (if $channel == "default" then "" else $channel end)
+                    toolchain: $channel
                   })
               '
           )"
