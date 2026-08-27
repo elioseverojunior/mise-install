@@ -49,11 +49,8 @@ on:
         options:
           - all
           - linux
-          - macos
-          - linux-x86_64
-          - linux-aarch64
-          - macos-x86_64
-          - macos-aarch64
+          - linux-24.04-x86_64
+          - linux-24.04-aarch64
       toolchain:
         description: "Toolchain: `default` reads rust-toolchain.toml"
         type: choice
@@ -200,6 +197,9 @@ jobs:
     outputs:
       include: ${{ steps.expand.outputs.include }}
       count: ${{ steps.expand.outputs.count }}
+      # Only the pinned toolchain produces publishable numbers. Any other
+      # selection is exploratory: bench it, report it, push nothing.
+      publish: ${{ inputs.toolchain == 'default' || inputs.toolchain == '' }}
     steps:
       - name: Expand the platform table
         id: expand
@@ -210,33 +210,29 @@ jobs:
         # that happen to be safe today.
         env:
           SELECT: ${{ inputs.platforms || 'all' }}
-          CHANNEL: ${{ inputs.toolchain == 'default' || needs.setup.outputs.toolchain || inputs.toolchain }}
+          TOOLCHAIN: ${{ inputs.toolchain == 'default' && needs.setup.outputs.toolchain || inputs.toolchain }}
           PROFILE: ${{ inputs.profile || 'default' }}
           RUNNER_LINUX_X86_64: ${{ vars.PERF_RUNNER_LINUX_X86_64 || 'ubuntu-24.04' }}
           RUNNER_LINUX_AARCH64: ${{ vars.PERF_RUNNER_LINUX_AARCH64 || 'ubuntu-24.04-arm' }}
-          RUNNER_MACOS_X86_64: ${{ vars.PERF_RUNNER_MACOS_X86_64 || 'macos-26-intel' }}
-          RUNNER_MACOS_AARCH64: ${{ vars.PERF_RUNNER_MACOS_AARCH64 || 'macos-26' }}
         run: |
           set -Eeuo pipefail
+
+          # Empty means "read rust-toolchain.toml"; the sentinel is not a channel
+          # rustup knows, so it must never reach the composite.
+          if [ "${TOOLCHAIN}" = "default" ]; then TOOLCHAIN=""; fi
 
           include="$(
             jq -nc \
               --arg select "${SELECT}" \
-              --arg channel "${CHANNEL}" \
+              --arg toolchain "${TOOLCHAIN}" \
               --arg linux_x86_64 "${RUNNER_LINUX_X86_64}" \
               --arg linux_aarch64 "${RUNNER_LINUX_AARCH64}" '
                 [
                   {key: "linux-24.04-x86_64",  label: "ubuntu-24.04",  os: "linux", arch: "x86_64",  runner: $linux_x86_64,  target: "x86_64-unknown-linux-gnu"},
-                  {key: "linux-24.04-aarch64", label: "ubuntu-24.04-arm", os: "linux", arch: "aarch64", runner: $linux_aarch64, target: "aarch64-unknown-linux-gnu"},
+                  {key: "linux-24.04-aarch64", label: "ubuntu-24.04-arm", os: "linux", arch: "aarch64", runner: $linux_aarch64, target: "aarch64-unknown-linux-gnu"}
                 ]
                 | map(select($select == "all" or .os == $select or .key == $select))
-                | map(. + {
-                    channel: $channel,
-                    # setup-rust-env reads rust-toolchain.toml when this is
-                    # empty, which is what keeps that file the single source of
-                    # truth for the default run.
-                    toolchain: $channel
-                  })
+                | map(. + {toolchain: $toolchain})
               '
           )"
 
@@ -254,7 +250,7 @@ jobs:
             echo
             echo "| Platform | Runner | Target | Toolchain |"
             echo "|:--|:--|:--|:--|"
-            jq -r '.[] | "| \(.label) | `\(.runner)` | `\(.target)` | \(.channel) |"' <<<"${include}"
+            jq -r '.[] | "| \(.label) | `\(.runner)` | `\(.target)` | \(.toolchain) |"' <<<"${include}"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ──────────────────────────────────────────────
